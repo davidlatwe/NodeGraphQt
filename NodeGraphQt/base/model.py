@@ -40,22 +40,40 @@ class PortModel(object):
 class NodeModel(object):
 
     def __init__(self):
+        # default properties.
         self.type = None
         self.id = hex(id(self))
         self.icon = None
         self.name = 'node'
-        self.color = (48, 58, 69, 255)
-        self.border_color = (85, 100, 100, 255)
-        self.text_color = (255, 255, 255, 180)
+        self.color = [48, 58, 69, 255]
+        self.border_color = [85, 100, 100, 255]
+        self.text_color = [255, 255, 255, 180]
         self.disabled = False
         self.selected = False
         self.width = 100.0
         self.height = 80.0
         self.pos = (0.0, 0.0)
+
+        # node connections.
         self.inputs = {}
         self.outputs = {}
+
+        # custom properties.
         self._properties = {}
-        self._widget_types = {}
+
+    def get_property(self, name):
+        default_props = self.properties
+        if name in default_props.keys():
+            return default_props[name]
+        elif name in self._properties.keys():
+            return self._properties[name]
+
+    def set_property(self, name, value):
+        default_props = self.properties
+        if name in default_props.keys():
+            setattr(self, name, value)
+        elif name in self._properties.keys():
+            self._properties[name] = value
 
     @property
     def properties(self):
@@ -78,16 +96,6 @@ class NodeModel(object):
             dict: user defined properties.
         """
         return self._properties
-
-    @property
-    def widget_types(self):
-        """
-        return the widget type for the node properties.
-
-        Returns:
-            dict: {<property_name>: PROPERTY_DISPLAY}
-        """
-        return self._widget_types
 
     @property
     def to_dict(self):
@@ -155,6 +163,7 @@ class NodeGraphModel(object):
 
     def __init__(self):
         self.nodes = {}
+        self.node_properties = {}
         self.session = ''
         self.acyclic = True
 

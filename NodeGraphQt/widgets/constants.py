@@ -1,3 +1,5 @@
+#TODO: remove this module and replace with NodeGraphQt.constants
+
 #!/usr/bin/python
 import os
 

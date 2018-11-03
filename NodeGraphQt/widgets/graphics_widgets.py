@@ -107,7 +107,7 @@ class NodeComboBox(NodeBaseWidget):
 
     @property
     def type(self):
-        return 'ComboNodeWidget'
+        return 'NodeComboBox'
 
     @property
     def widget(self):
@@ -130,7 +130,7 @@ class NodeComboBox(NodeBaseWidget):
             self._combo.addItems(items)
 
     def all_items(self):
-        return [self._combo.itemText(i) for i in range(self._combo.count)]
+        return [self._combo.itemText(i) for i in range(self._combo.count())]
 
     def sort_items(self):
         items = sorted(self.all_items())
@@ -160,7 +160,7 @@ class NodeLineEdit(NodeBaseWidget):
 
     @property
     def type(self):
-        return 'LineEditNodeWidget'
+        return 'NodeLineEdit'
 
     @property
     def widget(self):
@@ -198,7 +198,7 @@ class NodeCheckBox(NodeBaseWidget):
 
     @property
     def type(self):
-        return 'CheckboxNodeWidget'
+        return 'NodeCheckbox'
 
     @property
     def widget(self):

@@ -5,7 +5,7 @@ import re
 
 from PySide2 import QtCore
 from PySide2.QtGui import QClipboard
-from PySide2.QtWidgets import QUndoStack, QAction
+from PySide2.QtWidgets import QUndoStack, QAction, QWidget
 
 from NodeGraphQt.base.actions import setup_actions
 from NodeGraphQt.base.commands import (NodeAddedCmd,
@@ -15,6 +15,7 @@ from NodeGraphQt.base.commands import (NodeAddedCmd,
 from NodeGraphQt.base.model import NodeGraphModel
 from NodeGraphQt.base.node import NodeObject
 from NodeGraphQt.base.vendor import NodeVendor
+from NodeGraphQt.widgets.property_widgets import PropertyBin
 from NodeGraphQt.widgets.viewer import NodeViewer
 
 
@@ -24,6 +25,7 @@ class NodeGraph(QtCore.QObject):
         super(NodeGraph, self).__init__(parent)
         self._model = NodeGraphModel()
         self._viewer = NodeViewer()
+        self._property_bin = PropertyBin(self._viewer)
         self._undo_stack = QUndoStack(self)
         self._init_actions()
         self._wire_signals()
@@ -153,6 +155,15 @@ class NodeGraph(QtCore.QObject):
             NodeGraphQt.widgets.scene.NodeScene: node scene.
         """
         return self._viewer.scene()
+
+    def property_bin(self):
+        """
+        Returns the property bin widget.
+
+        Returns:
+            QWidget: property bin widget.
+        """
+        return self._property_bin
 
     def undo_stack(self):
         """
@@ -341,6 +352,12 @@ class NodeGraph(QtCore.QObject):
         node.NODE_NAME = self.get_unique_name(node.NODE_NAME)
         node.model.name = node.NODE_NAME
         node.update()
+
+        if node.type not in self.model.node_properties.keys():
+            self.model.node_properties[node.type] = node.property_attrs.copy()
+
+        del node.property_attrs
+
         self._undo_stack.push(NodeAddedCmd(self, node))
 
     def delete_node(self, node):

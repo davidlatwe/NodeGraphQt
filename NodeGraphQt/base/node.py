@@ -4,6 +4,15 @@ import os
 from NodeGraphQt.base.commands import PropertyChangedCmd
 from NodeGraphQt.base.model import NodeModel
 from NodeGraphQt.base.port import Port
+from NodeGraphQt.base.properties import PropertyFactory
+from NodeGraphQt.constants import (PROPERTY_HIDDEN,
+                         PROPERTY_LABEL,
+                         PROPERTY_TEXT,
+                         PROPERTY_LIST,
+                         PROPERTY_CHECKBOX,
+                         PROPERTY_COLOR,
+                         PROPERTY_SLIDER,
+                         PROPERTY_FLOAT_SLIDER)
 from NodeGraphQt.widgets.node_backdrop import BackdropNodeItem
 from NodeGraphQt.widgets.node_base import NodeItem
 
@@ -28,14 +37,31 @@ class NodeObject(object):
 
     def __init__(self, node=None):
         assert node, 'node cannot be None.'
+        # graph assigned when node has been added.
         self._graph = None
+
+        # setup node model.
         self._model = NodeModel()
         self._model.type = self.type
         self._model.name = self.NODE_NAME
+
+        # setup node view.
         self._view = node
         self._view.type = self.type
         self._view.name = self.model.name
         self._view.id = self._model.id
+
+        # temp var for property attributes.
+        self.property_attrs = {
+            'icon': PROPERTY_HIDDEN,
+            'name': PROPERTY_TEXT,
+            'color': PROPERTY_COLOR,
+            'border_color': PROPERTY_HIDDEN,
+            'disabled': PROPERTY_CHECKBOX,
+            'selected': PROPERTY_HIDDEN,
+            'width': PROPERTY_HIDDEN,
+            'height': PROPERTY_HIDDEN,
+        }
 
     def __repr__(self):
         return '{}(\'{}\')'.format(self.type, self.NODE_NAME)
@@ -211,28 +237,104 @@ class NodeObject(object):
         """
         self.set_property('selected', selected)
 
-    def create_property(self, name, value):
+    def create_property(self, name, value, property_type=PROPERTY_HIDDEN,
+                        items=None, min=None, max=None):
         """
-        adds new property to the node.
+        Create a new property to the node.
 
         Args:
             name (str): name of the attribute.
-            value (str, int, float): data
+            value (object): node property data.
+            property_type (int):
+                property type to be displayed the properties window.
+                (default=None which is hidden).
+            items (list): used if the property type is list.
+            min (int or float): used if property type is slider.
+            max (int or float): used if property type is slider.
         """
+        NodeProperty = PropertyFactory.get_instance(property_type)
+        if NodeProperty:
+            if self.graph is None:
+                node_prop = NodeProperty(None, name)
+            else:
+                node_prop = NodeProperty(self, name)
+
+            node_prop.set_value(value)
+            if hasattr(node_prop, 'set_items'):
+                node_prop.set_items(items)
+            if hasattr(node_prop, 'set_min'):
+                node_prop.set_min(min)
+            if hasattr(node_prop, 'set_max'):
+                node_prop.set_max(max)
+            self.add_property(node_prop)
+        else:
+            raise AssertionError('Can\'t find property type {}'.format(property_type))
+
+    def add_property(self, node_property):
+        """
+        Add a new property to the node.
+
+        Args:
+            node_property (NodeGraphQt.NodeProperty): node property interface.
+        """
+        name = node_property.name()
+        value = node_property.value()
         if not isinstance(name, str):
             raise TypeError('name must of str type.')
-        if not isinstance(value, (str, int, float, bool)):
-            err = 'value must be of type (String, Integer, Float, Bool)'
-            raise TypeError(err)
-        elif name in self.view.properties.keys():
-            raise KeyError('"{}" property already exists.'.format(name))
+        # if not isinstance(value, (str, int, float, bool)):
+        #     err = 'value must be of type (String, Integer, Float, Bool)'
+        #     raise TypeError(err)
         elif name in self.model.properties.keys():
+            raise KeyError('"{}" reserved for default properties.'.format(name))
+        elif name in self.model.custom_properties.keys():
             raise KeyError('"{}" property already exists.'.format(name))
+
         self.model.custom_properties[name] = value
+
+        if self.graph is None:
+            self.property_attrs[name] = {'type': node_property.type()}
+            for attr in ['items', 'min', 'max']:
+                if hasattr(node_property, attr):
+                    self.property_attrs[name][attr] = getattr(node_property, attr)()
+        else:
+            graph_model = self.graph.model
+            property_attrs = graph_model.node_properties[self.type]
+            property_attrs[name] = {'type': node_property.type()}
+            for attr in ['items', 'min', 'max']:
+                if hasattr(node_property, attr):
+                    property_attrs[name][attr] = getattr(node_property, attr)()
 
     def properties(self):
         """
-        Returns all the node properties.
+        Returns all node properties.
+
+        Returns:
+            list[NodeGraphQt.NodeProperty]: list of node property interfaces.
+        """
+        prop_objs = []
+        properties = self.model.properties
+        properties.update(self.model.custom_properties)
+
+        if self.graph is None:
+            property_attrs = self.property_attrs
+        else:
+            property_attrs = self.graph.model.node_properties[self.type]
+
+        for name, value in properties.items():
+            prop_type = property_attrs[name]['type']
+            NodeProperty = PropertyFactory.get_instance(prop_type)
+            prop_obj = NodeProperty(node=self, name=name)
+            for attr in ['items', 'min', 'max']:
+                set_attr = 'set_{}'.format(attr)
+                if hasattr(prop_obj, set_attr):
+                    getattr(prop_obj, set_attr)(property_attrs[name][attr])
+            prop_objs.append(prop_obj)
+
+        return prop_objs
+
+    def serialize(self):
+        """
+        Return the node in a serialized form.
 
         Returns:
             dict: a dictionary of node properties.
@@ -241,13 +343,13 @@ class NodeObject(object):
 
     def get_property(self, name):
         """
-        Return the node custom property.
+        Return the node property value.
 
         Args:
             name (str): name of the property.
 
         Returns:
-            str, int or float: value of the node property.
+            object: value of the node property.
         """
         if name in self.model.custom_properties.keys():
             if name == 'selected':
@@ -257,11 +359,11 @@ class NodeObject(object):
 
     def set_property(self, name, value):
         """
-        Set the value on the node custom property.
+        Set the value on the node property.
 
         Args:
             name (str): name of the property.
-            value: the new property value.
+            value (object): the new property value.
         """
         if self.graph and name == 'name':
             value = self.graph.get_unique_name(value)
@@ -388,19 +490,18 @@ class Node(NodeObject):
             if name in self.model.custom_properties.keys():
                 self.model.custom_properties[name] = widget.value
 
-    def set_property(self, name, value, update_widget=True):
+    def set_property(self, name, value):
         """
-        Set the value on the node custom property and updates the node widget.
+        Set the value on the node property and updates the node widget.
 
         Args:
             name (str): name of the property.
             value: the new property value.
-            update_widget (bool): update the node widget (default=True).
         """
-        node_widget = self.view.widgets.get(name)
-        if node_widget and update_widget:
-            node_widget.value = value
         super(Node, self).set_property(name, value)
+        node_widget = self.view.widgets.get(name)
+        if node_widget:
+            node_widget.value = value
 
     def set_icon(self, icon=None):
         """
@@ -478,7 +579,11 @@ class Node(NodeObject):
             items (list[str]): items to be added into the menu.
         """
         items = items or []
-        self.create_property(name, items[0] if items else '')
+        item = items[0] if items else ''
+        self.create_property(name,
+                             item,
+                             items=items,
+                             property_type=PROPERTY_LIST)
         widget = self.view.add_combo_menu(name, label, items)
         widget.value_changed.connect(lambda k, v: self._on_widget_changed(k, v))
 
@@ -491,7 +596,7 @@ class Node(NodeObject):
             label (str): label to be displayed.
             text (str): pre filled text.
         """
-        self.create_property(name, text)
+        self.create_property(name, text, property_type=PROPERTY_TEXT)
         widget = self.view.add_text_input(name, label, text)
         widget.value_changed.connect(lambda k, v: self._on_widget_changed(k, v))
 
@@ -505,9 +610,20 @@ class Node(NodeObject):
             text (str): checkbox text.
             state (bool): pre-check.
         """
-        self.create_property(name, state)
+        self.create_property(name, state, property_type=PROPERTY_CHECKBOX)
         widget = self.view.add_checkbox(name, label, text, state)
         widget.value_changed.connect(lambda k, v: self._on_widget_changed(k, v))
+
+    def widgets(self):
+        """
+        Return embedded node view widgets.
+
+        Returns:
+            dict: {<property name>: <...node_base.NodeBaseWidget>}
+        """
+        if self._view:
+            return self._view.widgets
+        return {}
 
     def inputs(self):
         """
@@ -585,7 +701,7 @@ class Backdrop(NodeObject):
         super(Backdrop, self).__init__(BackdropNodeItem())
         # override base default color.
         self.model.color = (5, 129, 138, 255)
-        self.create_property('bg_text', '')
+        self.create_property('bg_text', '', property_type=PROPERTY_TEXT)
 
     def auto_size(self):
         """
