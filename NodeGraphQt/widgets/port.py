@@ -1,13 +1,12 @@
 #!/usr/bin/python
-from PySide2 import QtGui, QtCore, QtWidgets
-
-from NodeGraphQt.widgets.constants import (
+from NodeGraphQt.constants import (
     IN_PORT, OUT_PORT,
     PORT_HOVER_COLOR,
     PORT_HOVER_BORDER_COLOR,
     PORT_ACTIVE_COLOR,
     PORT_ACTIVE_BORDER_COLOR,
     Z_VAL_PORT)
+from PySide2 import QtGui, QtCore, QtWidgets
 
 
 class PortItem(QtWidgets.QGraphicsItem):

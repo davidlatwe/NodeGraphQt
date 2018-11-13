@@ -2,7 +2,7 @@
 from PySide2 import QtGui, QtCore
 from PySide2.QtWidgets import QGraphicsItem
 
-from NodeGraphQt.widgets.constants import (Z_VAL_PIPE,
+from NodeGraphQt.constants import (Z_VAL_PIPE,
                                            NODE_SEL_COLOR,
                                            NODE_SEL_BORDER_COLOR)
 from NodeGraphQt.widgets.node_abstract import AbstractNodeItem

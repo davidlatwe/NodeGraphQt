@@ -3,10 +3,10 @@ from sys import platform
 
 from PySide2 import QtGui, QtCore, QtWidgets
 
-from NodeGraphQt.widgets.constants import (IN_PORT, OUT_PORT,
-                                           PIPE_LAYOUT_CURVED,
-                                           PIPE_LAYOUT_STRAIGHT,
-                                           PIPE_STYLE_DASHED)
+from NodeGraphQt.constants import (IN_PORT, OUT_PORT,
+                                   PIPE_LAYOUT_CURVED,
+                                   PIPE_LAYOUT_STRAIGHT,
+                                   PIPE_STYLE_DASHED)
 from NodeGraphQt.widgets.node_abstract import AbstractNodeItem
 from NodeGraphQt.widgets.node_backdrop import BackdropNodeItem
 from NodeGraphQt.widgets.pipe import Pipe
