@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from PySide2 import QtWidgets
 from NodeGraphQt.constants import (PROPERTY_HIDDEN,
                                    PROPERTY_LABEL,
                                    PROPERTY_TEXT,
@@ -9,6 +8,7 @@ from NodeGraphQt.constants import (PROPERTY_HIDDEN,
                                    PROPERTY_COLOR,
                                    PROPERTY_SLIDER,
                                    PROPERTY_FLOAT_SLIDER)
+from NodeGraphQt.base.commands import PropertyChangedCmd
 
 
 class PropertyFactory(object):
@@ -36,46 +36,78 @@ class PropertyFactory(object):
 
 
 class NodeProperty(object):
+    """
+    Base property controller.
+    """
 
-    def __init__(self, node=None, name=None):
+    _type = PROPERTY_HIDDEN
+
+    def __init__(self, graph=None, node_id=None, prop_name=None):
         """
         Args:
-            node (NodeGraphQt.Node): node controller.
-            name (str): property name.
+            graph (NodeGraphQt.NodeGraph): node graph.
+            node_id (str): node id.
+            prop_name (str): property name.
         """
-        self._node = node
-        self._name = name
+        self._graph = graph
+        self._node_id = node_id
+        self._name = prop_name
         self._value = None
 
     def type(self):
-        return PROPERTY_HIDDEN
+        return self._type
 
     def node(self):
-        return self._node
+        if self._graph:
+            return self._graph.get_node_by_id(self._node_id)
 
     def name(self):
         return self._name
 
     def value(self):
-        if self._node:
-            return self._node.get_property(self._name)
-        return self._value
+        if self._graph is None:
+            return self._value
+        node = self.node()
+        if node is None:
+            raise AssertionError('Node deleted!, can\'t get value.')
+        node.model.get_property(self._name)
 
     def set_value(self, value):
-        if self._node:
-            self._node.set_property(self._name, value)
-            return
-        self._value = value
+        if self._graph is None:
+            self._value = value
+        node = self.node()
+        if node is None:
+            raise AssertionError('Node deleted!, can\'t set value.')
+
+        if self._graph and self.name() == 'name':
+            value = self._graph.get_unique_name(value)
+            node.NODE_NAME = value
+
+        exists = any([self.name() in node.model.properties.keys(),
+                      self.name() in node.model.custom_properties.keys()])
+        if not exists:
+            raise KeyError('No property "{}"'.format(self.name()))
+
+        if self._graph:
+            block_widget_signal = node.model.block_widget_signal
+            undo_stack = self._graph.undo_stack()
+
+            undo_stack.push(PropertyChangedCmd(self,
+                                               self.name(),
+                                               value,
+                                               block_widget_signal))
+        else:
+            setattr(node.view, node.name(), value)
+            node.model.set_property(self.name(), value)
 
 
 class ListProperty(NodeProperty):
 
-    def __init__(self, node=None, name=None):
-        super(ListProperty, self).__init__(node, name)
-        self._items = []
+    _type = PROPERTY_LIST
 
-    def type(self):
-        return PROPERTY_LIST
+    def __init__(self, *args, **kwargs):
+        super(ListProperty, self).__init__(*args, **kwargs)
+        self._items = []
 
     def items(self):
         return self._items
@@ -86,14 +118,12 @@ class ListProperty(NodeProperty):
 
 class CheckboxProperty(NodeProperty):
 
-    def type(self):
-        return PROPERTY_CHECKBOX
+    _type = PROPERTY_CHECKBOX
 
 
 class ColorProperty(NodeProperty):
 
-    def type(self):
-        return PROPERTY_COLOR
+    _type = PROPERTY_COLOR
 
     def color(self):
         r, g, b, a = self.value()
@@ -110,25 +140,22 @@ class ColorProperty(NodeProperty):
 
 class TextProperty(NodeProperty):
 
-    def type(self):
-        return PROPERTY_TEXT
+    _type = PROPERTY_TEXT
 
 
 class LabelProperty(NodeProperty):
 
-    def type(self):
-        return PROPERTY_LABEL
+    _type = PROPERTY_LABEL
 
 
 class SliderProperty(NodeProperty):
 
-    def __init__(self, node=None, name=None, widget=None):
-        super(SliderProperty, self).__init__(node, name, widget)
+    _type = PROPERTY_SLIDER
+
+    def __init__(self, *args, **kwargs):
+        super(SliderProperty, self).__init__(*args, **kwargs)
         self._min = 0.0
         self._max = 1.0
-
-    def type(self):
-        return PROPERTY_SLIDER
 
     def min(self):
         return self._min
@@ -145,13 +172,12 @@ class SliderProperty(NodeProperty):
 
 class FloatSliderProperty(NodeProperty):
 
-    def __init__(self, node=None, name=None, widget=None):
-        super(FloatSliderProperty, self).__init__(node, name, widget)
+    _type = PROPERTY_FLOAT_SLIDER
+
+    def __init__(self,  *args, **kwargs):
+        super(FloatSliderProperty, self).__init__(*args, **kwargs)
         self._min = 0.0
         self._max = 1.0
-
-    def type(self):
-        return PROPERTY_FLOAT_SLIDER
 
     def min(self):
         return self._min

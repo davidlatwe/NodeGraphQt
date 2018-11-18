@@ -39,12 +39,14 @@ class NodeBaseWidget(QtWidgets.QGraphicsProxyWidget):
         self.setZValue(Z_VAL_NODE_WIDGET)
         self._name = name
         self._label = label
+        self.block_signal = False
 
     def __repr__(self):
         return '{}({})'.format(self.__class__.__name__, self._name)
 
     def _value_changed(self):
-        self.value_changed.emit(self.name, self.value)
+        if not self.block_signal:
+            self.value_changed.emit(self.name, self.value)
 
     def setToolTip(self, tooltip):
         tooltip = tooltip.replace('\n', '<br/>')

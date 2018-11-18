@@ -616,8 +616,17 @@ class NodeItem(AbstractNodeItem):
         super(NodeItem, self).delete()
 
     def from_dict(self, node_dict):
+        """
+        set the node view attributes from the dictionary and
+        update the node widgets without triggering the signals.
+
+        Args:
+            node_dict (dict): serialized node dict.
+        """
         super(NodeItem, self).from_dict(node_dict)
         widgets = node_dict.pop('widgets', {})
         for name, value in widgets.items():
-            if self._widgets.get(name):
+            if name in self._widgets.keys():
+                self._widgets[name].block_signal = True
                 self._widgets[name].value = value
+                self._widgets[name].block_signal = False

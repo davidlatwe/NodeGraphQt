@@ -21,6 +21,8 @@ from NodeGraphQt.widgets.viewer import NodeViewer
 
 class NodeGraph(QtCore.QObject):
 
+    node_selected = QtCore.Signal(NodeObject)
+
     def __init__(self, parent=None):
         super(NodeGraph, self).__init__(parent)
         self._model = NodeGraphModel()
@@ -37,6 +39,7 @@ class NodeGraph(QtCore.QObject):
         self._viewer.moved_nodes.connect(self._on_nodes_moved)
         self._viewer.search_triggered.connect(self._on_search_triggered)
         self._viewer.connection_changed.connect(self._on_connection_changed)
+        self._viewer.node_selected.connect(self._on_node_selected)
 
     def _init_actions(self):
         """
@@ -68,6 +71,17 @@ class NodeGraph(QtCore.QObject):
             node = self._model.nodes[node_view.id]
             self._undo_stack.push(NodeMovedCmd(node, node.pos(), prev_pos))
         self._undo_stack.endMacro()
+
+    def _on_node_selected(self, node_id):
+        """
+        called when a node in the viewer is selected on left click.
+        (emits the node object when the node is clicked)
+
+        Args:
+            node_id (str): node id emitted by the viewer.
+        """
+        node = self.get_node_by_id(node_id)
+        self.node_selected.emit(node)
 
     def _on_search_triggered(self, node_type, pos):
         """
@@ -326,6 +340,10 @@ class NodeGraph(QtCore.QObject):
 
             self._undo_stack.beginMacro('created node')
             self._undo_stack.push(NodeAddedCmd(self, node, pos))
+
+            node.model.block_signal = True
+            node.model.block_widget_signal = True
+
             if name:
                 node.set_name(name)
             else:
@@ -336,6 +354,10 @@ class NodeGraph(QtCore.QObject):
                     color = tuple(int(color[i:i + 2], 16) for i in (0, 2, 4))
                 node.set_color(*color)
             node.set_selected(selected)
+
+            node.model.block_signal = False
+            node.model.block_widget_signal = False
+
             self._undo_stack.endMacro()
             return node
         raise Exception('\n\n>> Cannot find node:\t"{}"\n'.format(node_type))
@@ -497,7 +519,7 @@ class NodeGraph(QtCore.QObject):
 
     def _serialize(self, nodes):
         """
-        serialize nodes to a dict.
+        serialize nodes and connections to a dict.
 
         Args:
             nodes (list[NodeGraphQt.Nodes]): list of node instances.
@@ -541,7 +563,7 @@ class NodeGraph(QtCore.QObject):
 
     def _deserialize(self, data, relative_pos=False, pos=None):
         """
-        deserialize node data.
+        deserialize nodes and connections data.
 
         Args:
             data (dict): node data.
@@ -560,19 +582,21 @@ class NodeGraph(QtCore.QObject):
                 node = NodeInstance()
                 node._graph = self
 
+                # name exists check.
                 name = self.get_unique_name(n_data.get('name', node.NODE_NAME))
                 n_data['name'] = name
 
+                node.model.block_signal = True
+
                 # set properties.
                 for prop, val in node.model.properties.items():
-                    if prop in n_data.keys():
-                        setattr(node.model, prop, n_data[prop])
+                    node.model.set_property(prop, val)
 
                 # set custom properties.
                 for prop, val in n_data.get('custom', {}).items():
-                    if prop in node.model.custom_properties.keys():
-                        node.model.custom_properties[prop] = val
+                    node.model.set_property(prop, val)
 
+                node.model.block_signal = False
                 node.update()
 
                 self._undo_stack.push(
@@ -613,7 +637,7 @@ class NodeGraph(QtCore.QObject):
         Args:
             file_path (str): path to the saved node layout.
         """
-        serliazed_data = self._serialize(self.selected_nodes())
+        serliazed_data = self._serialize(self.all_nodes())
         file_path = file_path.strip()
         with open(file_path, 'w') as file_out:
             json.dump(serliazed_data, file_out, indent=2, separators=(',', ':'))

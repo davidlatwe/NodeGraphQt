@@ -16,6 +16,7 @@ class BaseProperty(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
         super(BaseProperty, self).__init__(parent)
+        self.block_signal = False
         self.name = ''
 
 
@@ -77,7 +78,8 @@ class PropWidgetColorPicker(BaseProperty):
             'QLabel {{color: rgba({}, {}, {}, 255);}}'
             .format(*self._solid.color))
         self._solid.color = value
-        self.value_changed.emit(value)
+        if not self.block_signal:
+            self.value_changed.emit(value)
 
     def hex_color(self):
         return '#{0:02x}{1:02x}{2:02x}'.format(*self._solid.color)
@@ -134,7 +136,6 @@ class PropWidgetSlider(BaseProperty):
 
     def set_value(self, value):
         if not self._block:
-            print(value)
             self.value_changed.emit(value)
 
 
@@ -225,6 +226,29 @@ class PropWidgetCheckBox(QtWidgets.QCheckBox):
         self.value_changed.emit(value)
 
 
+class PropertyWidgetFactory(object):
+
+    @staticmethod
+    def get_widget_instance(property_type):
+        """
+        Args:
+            property_type (int): property type
+
+        Returns:
+            QtWidgets.QWidget: property widget instance.
+        """
+        widget_map = {
+            PROPERTY_LABEL: PropWidgetLabel,
+            PROPERTY_TEXT: PropWidgetText,
+            PROPERTY_LIST: PropWidgetList,
+            PROPERTY_CHECKBOX: PropWidgetCheckBox,
+            PROPERTY_COLOR: PropWidgetColorPicker,
+            PROPERTY_SLIDER: PropWidgetSlider,
+            PROPERTY_FLOAT_SLIDER: PropWidgetFloatSlider
+        }
+        return widget_map.get(property_type)
+
+
 class PropertiesWidget(QtWidgets.QWidget):
 
     property_changed = QtCore.Signal(str, object)
@@ -242,6 +266,9 @@ class PropertiesWidget(QtWidgets.QWidget):
         self._widgets = {}
         self.layout = QtWidgets.QVBoxLayout(self)
         self.layout.setSpacing(2)
+
+        # TODO: must read the node widgets.
+
 
     @property
     def node(self):
@@ -289,60 +316,30 @@ class PropertyBin(QtWidgets.QWidget):
             widget.deleteLater()
 
 
-class PropertyWidgetFactory(object):
-
-    @staticmethod
-    def get_widget_instance(property_type):
-        """
-        Args:
-            property_type (int): property type
-
-        Returns:
-            QtWidgets.QWidget: property widget instance.
-        """
-        widget_map = {
-            PROPERTY_LABEL: PropWidgetLabel,
-            PROPERTY_TEXT: PropWidgetText,
-            PROPERTY_LIST: PropWidgetList,
-            PROPERTY_CHECKBOX: PropWidgetCheckBox,
-            PROPERTY_COLOR: PropWidgetColorPicker,
-            PROPERTY_SLIDER: PropWidgetSlider,
-            PROPERTY_FLOAT_SLIDER: PropWidgetFloatSlider
-        }
-        return widget_map.get(property_type)
-
-
 if __name__ == '__main__':
     import sys
-    # from NodeGraphQt import Node
-    #
-    # class TestNode(Node):
-    #
-    #     NODE_NAME = 'test node'
-    #
-    #     def __init__(self):
-    #         super(TestNode, self).__init__()
-    #         self.create_property(
-    #             'label_test', 'foo bar', property_type=PROPERTY_LABEL)
-    #         self.create_property(
-    #             'text_edit', 'hello', property_type=PROPERTY_LINE_EDIT)
-    #         self.create_property(
-    #             'color_picker', (0, 0, 255), property_type=PROPERTY_COLOR_PICKER)
-    #         self.create_property(
-    #             'integer', 10, property_type=PROPERTY_SPINBOX)
-    #         self.create_property(
-    #             'float', 1.25, property_type=PROPERTY_DOUBLE_SPINBOX)
-    #
-    #         self.create_property(
-    #             'list', 'foo', items=['foo', 'bar'], property_type=PROPERTY_COMBOBOX)
-    #         self.add_combo_menu(
-    #             'fruits', 'fruits', ['apples', 'bananas', 'pears'])
+    from NodeGraphQt import Node
+
+    class TestNode(Node):
+
+        NODE_NAME = 'test node'
+
+        def __init__(self):
+            super(TestNode, self).__init__()
+            self.create_property('label_test', 'foo bar')
+            self.create_property('text_edit', 'hello')
+            self.create_property('color_picker', (0, 0, 255), PROPERTY_COLOR)
+            self.create_property('integer', 10)
+            self.create_property('float', 1.25)
+            self.create_property('list', 'foo', items=['foo', 'bar'])
+            self.add_combo_menu('fruits', 'fruits', ['apples', 'bananas', 'pears'])
+
 
 
     app = QtWidgets.QApplication(sys.argv)
 
-    # test_node = TestNode()
-    # button = NodePropertyWidget(node=test_node)
+    test_node = TestNode()
+    button = PropertiesWidget(node=test_node)
     # button.show()
 
     cp = PropWidgetText()

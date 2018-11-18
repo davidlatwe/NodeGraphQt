@@ -2,6 +2,8 @@
 import json
 from collections import defaultdict
 
+from PySide2 import QtCore
+
 
 class PortModel(object):
 
@@ -37,9 +39,15 @@ class PortModel(object):
         return props
 
 
-class NodeModel(object):
+class NodeModel(QtCore.QObject):
 
-    def __init__(self):
+    property_changed = QtCore.Signal(str, str)
+
+    def __init__(self, parent=None):
+        super(NodeModel, self).__init__(parent)
+        self.block_signal = False
+        self.block_widget_signal = True
+
         # default properties.
         self.type = None
         self.id = hex(id(self))
@@ -72,8 +80,12 @@ class NodeModel(object):
         default_props = self.properties
         if name in default_props.keys():
             setattr(self, name, value)
+            if not self.block_signal:
+                self.property_changed.emit(name, value)
         elif name in self._properties.keys():
             self._properties[name] = value
+            if not self.block_signal:
+                self.property_changed.emit(name, value)
 
     @property
     def properties(self):

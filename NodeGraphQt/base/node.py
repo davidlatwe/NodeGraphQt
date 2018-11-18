@@ -1,7 +1,6 @@
 #!/usr/bin/python
 import os
 
-from NodeGraphQt.base.commands import PropertyChangedCmd
 from NodeGraphQt.base.model import NodeModel
 from NodeGraphQt.base.port import Port
 from NodeGraphQt.base.properties import PropertyFactory
@@ -51,16 +50,17 @@ class NodeObject(object):
         self._view.name = self.model.name
         self._view.id = self._model.id
 
-        # temp var for property attributes.
+        # temp variable for property attributes .
+        # (gets deleted when node is added to the graph)
         self.property_attrs = {
-            'icon': PROPERTY_HIDDEN,
-            'name': PROPERTY_TEXT,
-            'color': PROPERTY_COLOR,
-            'border_color': PROPERTY_HIDDEN,
-            'disabled': PROPERTY_CHECKBOX,
-            'selected': PROPERTY_HIDDEN,
-            'width': PROPERTY_HIDDEN,
-            'height': PROPERTY_HIDDEN,
+            'icon': {'type': PROPERTY_HIDDEN},
+            'name': {'type': PROPERTY_TEXT},
+            'color': {'type': PROPERTY_COLOR},
+            'border_color': {'type': PROPERTY_HIDDEN},
+            'disabled': {'type': PROPERTY_CHECKBOX},
+            'selected': {'type': PROPERTY_HIDDEN},
+            'width': {'type': PROPERTY_HIDDEN},
+            'height': {'type': PROPERTY_HIDDEN},
         }
 
     def __repr__(self):
@@ -107,7 +107,7 @@ class NodeObject(object):
 
     def set_view(self, item):
         """
-        set the view item for the scene.
+        Set the view item for the scene.
 
         Args:
             item (AbstractNodeItem): node view item.
@@ -119,7 +119,7 @@ class NodeObject(object):
     @property
     def model(self):
         """
-        returns the node model.
+        Return the node model.
 
         Returns:
             NodeModel: node model object.
@@ -127,6 +127,12 @@ class NodeObject(object):
         return self._model
 
     def set_model(self, model):
+        """
+        Set the node model.
+
+        Args:
+            model (NodeModel): node model object.
+        """
         self._model = model
         self._model.type = self.type
         self._model.id = self.view.id
@@ -143,7 +149,7 @@ class NodeObject(object):
 
     def update_model(self):
         """
-        update the node model from view.
+        Update the node model from view.
         """
         for name, val in self.view.properties.items():
             if name in self.model.properties.keys():
@@ -157,9 +163,10 @@ class NodeObject(object):
         """
         settings = self.model.to_dict[self.model.id]
         settings['id'] = self.model.id
-        if settings.get('custom'):
+        if 'custom' in settings.keys():
             settings['widgets'] = settings.pop('custom')
 
+        # from dict method doesn't trigger node widget signals.
         self.view.from_dict(settings)
 
     def name(self):
@@ -178,7 +185,8 @@ class NodeObject(object):
         Args:
             name (str): name for the node.
         """
-        self.set_property('name', name)
+        prop = self.get_property('name')
+        prop.set_value(name)
 
     def color(self):
         """
@@ -199,7 +207,8 @@ class NodeObject(object):
             g (int): green value 0-255 range.
             b (int): blue value 0-255 range.
         """
-        self.set_property('color', (r, g, b, 255))
+        prop = self.get_property('color')
+        prop.set_value((r, g, b, 255))
 
     def disabled(self):
         """
@@ -216,7 +225,8 @@ class NodeObject(object):
 
         Args (bool): true to disable node.
         """
-        self.set_property('disabled', mode)
+        prop = self.get_property('disabled')
+        prop.set_value(mode)
 
     def selected(self):
         """
@@ -235,9 +245,10 @@ class NodeObject(object):
         Args:
             selected (bool): True to select the node.
         """
-        self.set_property('selected', selected)
+        prop = self.get_property('selected')
+        prop.set_value(selected)
 
-    def create_property(self, name, value, property_type=PROPERTY_HIDDEN,
+    def create_property(self, name, value, property_type=None,
                         items=None, min=None, max=None):
         """
         Create a new property to the node.
@@ -252,6 +263,17 @@ class NodeObject(object):
             min (int or float): used if property type is slider.
             max (int or float): used if property type is slider.
         """
+        if property_type is None:
+            prop_map = {
+                str: PROPERTY_LABEL, bool: PROPERTY_CHECKBOX,
+                int: PROPERTY_SLIDER, float: PROPERTY_FLOAT_SLIDER,
+            }
+            val_type = type(value)
+            if val_type in prop_map.keys():
+                property_type = prop_map[val_type]
+            elif val_type in [list, tuple]:
+                property_type = PROPERTY_LIST
+
         NodeProperty = PropertyFactory.get_instance(property_type)
         if NodeProperty:
             if self.graph is None:
@@ -263,8 +285,12 @@ class NodeObject(object):
             if hasattr(node_prop, 'set_items'):
                 node_prop.set_items(items)
             if hasattr(node_prop, 'set_min'):
+                if isinstance(value, (int, float)) and min > value:
+                    min = value
                 node_prop.set_min(min)
             if hasattr(node_prop, 'set_max'):
+                if isinstance(value, (int, float)) and max < value:
+                    max = value
                 node_prop.set_max(max)
             self.add_property(node_prop)
         else:
@@ -332,15 +358,6 @@ class NodeObject(object):
 
         return prop_objs
 
-    def serialize(self):
-        """
-        Return the node in a serialized form.
-
-        Returns:
-            dict: a dictionary of node properties.
-        """
-        return self.model.to_dict
-
     def get_property(self, name):
         """
         Return the node property value.
@@ -349,52 +366,44 @@ class NodeObject(object):
             name (str): name of the property.
 
         Returns:
-            object: value of the node property.
+            NodeProperty: node property object.
         """
-        if name in self.model.custom_properties.keys():
-            if name == 'selected':
-                self.model.custom_properties[name] = self.view.selected
-            return self.model.custom_properties[name]
-        return self.model.properties.get(name)
-
-    def set_property(self, name, value):
-        """
-        Set the value on the node property.
-
-        Args:
-            name (str): name of the property.
-            value (object): the new property value.
-        """
-        if self.graph and name == 'name':
-            value = self.graph.get_unique_name(value)
-            self.NODE_NAME = value
-
-        exists = any([name in self.model.properties.keys(),
-                      name in self.model.custom_properties.keys()])
-        if not exists:
-            raise KeyError('No property "{}"'.format(name))
-
-        if self.graph:
-            undo_stack = self.graph.undo_stack()
-            undo_stack.push(PropertyChangedCmd(self, name, value))
+        if self.graph is None:
+            property_attrs = self.property_attrs
         else:
-            setattr(self.view, name, value)
-            if name in self.model.properties.keys():
-                setattr(self.model, name, value)
-            elif name in self.model.custom_properties.keys():
-                self.model.custom_properties[name] = value
+            property_attrs = self.graph.model.node_properties[self.type]
+
+        prop_type = property_attrs[name]['type']
+        print('----', prop_type)
+        NodeProperty = PropertyFactory.get_instance(prop_type)
+        prop_obj = NodeProperty(self.graph, self.id, name)
+        for attr in ['items', 'min', 'max']:
+            set_attr = 'set_{}'.format(attr)
+            if hasattr(prop_obj, set_attr):
+                getattr(prop_obj, set_attr)(property_attrs[name][attr])
+        return prop_obj
 
     def has_property(self, name):
         """
         Check if node custom property exists.
 
         Args:
-            name (str): name of the node.
+            name (str): name of the node property.
 
         Returns:
             bool: true if property name exists in the Node.
         """
-        return name in self.model.properties.keys()
+        return any([name in self.model.properties.keys(),
+                    name in self.model.custom_properties.keys()])
+
+    def serialize(self):
+        """
+        Return the node in a serialized form.
+
+        Returns:
+            dict: a dictionary of node properties.
+        """
+        return self.model.to_dict
 
     def set_x_pos(self, x=0.0):
         """
@@ -473,7 +482,7 @@ class Node(NodeObject):
         self._outputs = []
 
     def _on_widget_changed(self, name, value):
-        self.model.custom_properties[name] = value
+        self.model.set_property(name, value)
 
     def update_model(self):
         """
@@ -490,19 +499,6 @@ class Node(NodeObject):
             if name in self.model.custom_properties.keys():
                 self.model.custom_properties[name] = widget.value
 
-    def set_property(self, name, value):
-        """
-        Set the value on the node property and updates the node widget.
-
-        Args:
-            name (str): name of the property.
-            value: the new property value.
-        """
-        super(Node, self).set_property(name, value)
-        node_widget = self.view.widgets.get(name)
-        if node_widget:
-            node_widget.value = value
-
     def set_icon(self, icon=None):
         """
         Set the node icon.
@@ -514,7 +510,8 @@ class Node(NodeObject):
             return
         if not os.path.exists(icon):
             raise FileNotFoundError('icon file missing: {}'.format(icon))
-        self.set_property('icon', icon)
+        prop = self.get_property('icon')
+        prop.set_value(icon)
 
     def icon(self):
         """
