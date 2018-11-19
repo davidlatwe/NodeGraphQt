@@ -20,6 +20,8 @@ from NodeGraphQt.widgets.viewer import NodeViewer
 
 
 class NodeGraph(QtCore.QObject):
+  
+    node_selected = QtCore.Signal(NodeObject)
 
     node_selected = QtCore.Signal(NodeObject)
 

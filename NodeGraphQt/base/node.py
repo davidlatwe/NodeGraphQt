@@ -5,13 +5,13 @@ from NodeGraphQt.base.model import NodeModel
 from NodeGraphQt.base.port import Port
 from NodeGraphQt.base.properties import PropertyFactory
 from NodeGraphQt.constants import (PROPERTY_HIDDEN,
-                         PROPERTY_LABEL,
-                         PROPERTY_TEXT,
-                         PROPERTY_LIST,
-                         PROPERTY_CHECKBOX,
-                         PROPERTY_COLOR,
-                         PROPERTY_SLIDER,
-                         PROPERTY_FLOAT_SLIDER)
+                                   PROPERTY_LABEL,
+                                   PROPERTY_TEXT,
+                                   PROPERTY_LIST,
+                                   PROPERTY_CHECKBOX,
+                                   PROPERTY_COLOR,
+                                   PROPERTY_SLIDER,
+                                   PROPERTY_FLOAT_SLIDER)
 from NodeGraphQt.widgets.node_backdrop import BackdropNodeItem
 from NodeGraphQt.widgets.node_base import NodeItem
 
