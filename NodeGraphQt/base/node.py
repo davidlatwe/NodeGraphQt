@@ -310,6 +310,8 @@ class NodeObject(object):
         # if not isinstance(value, (str, int, float, bool)):
         #     err = 'value must be of type (String, Integer, Float, Bool)'
         #     raise TypeError(err)
+        if name in self.view.properties.keys():
+            raise KeyError('"{}" property already exists.'.format(name))
         elif name in self.model.properties.keys():
             raise KeyError('"{}" reserved for default properties.'.format(name))
         elif name in self.model.custom_properties.keys():

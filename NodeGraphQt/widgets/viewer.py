@@ -68,7 +68,10 @@ class NodeViewer(QtWidgets.QGraphicsView):
     moved_nodes = QtCore.Signal(dict)
     search_triggered = QtCore.Signal(str, tuple)
     connection_changed = QtCore.Signal(list, list)
+
+    # pass through signals
     node_selected = QtCore.Signal(str)
+    data_dropped = QtCore.Signal(str, tuple)
 
     def __init__(self, parent=None):
         super(NodeViewer, self).__init__(parent)
@@ -80,7 +83,8 @@ class NodeViewer(QtWidgets.QGraphicsView):
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setViewportUpdateMode(QtWidgets.QGraphicsView.FullViewportUpdate)
-        self.setWindowTitle('NodeGraphQt')
+        self.setAcceptDrops(True)
+
         self._pipe_layout = PIPE_LAYOUT_CURVED
         self._live_pipe = None
         self._detached_port = None
@@ -93,14 +97,14 @@ class NodeViewer(QtWidgets.QGraphicsView):
             QtWidgets.QRubberBand.Rectangle, self
         )
         self._undo_stack = QtWidgets.QUndoStack(self)
-        self._context_menu = QtWidgets.QMenu('nodes', self)
+        self._context_menu = QtWidgets.QMenu('main', self)
         self._context_menu.setStyleSheet(STYLE_QMENU)
         self._search_widget = TabSearchWidget(self)
         self._search_widget.search_submitted.connect(self._on_search_submitted)
 
-        # workaround fix on OSX shortcuts from the non-native menu actions
+        # workaround fix for OSX & linux shortcuts from the non-native menu actions
         # don't seem to trigger so we create a dummy menu bar.
-        if platform == 'darwin':
+        if platform in ['darwin', 'linux2']:
             menu_bar = QtWidgets.QMenuBar(self)
             menu_bar.setNativeMenuBar(False)
             menu_bar.resize(0, 0)
@@ -270,18 +274,31 @@ class NodeViewer(QtWidgets.QGraphicsView):
         adjust = (event.delta() / 120) * 0.1
         self._set_viewer_zoom(adjust)
 
-    # def dropEvent(self, event):
-    #     if event.mimeData().hasFormat('component/name'):
-    #         drop_str = str(event.mimeData().data('component/name'))
-    #         drop_pos = event.pos()
+    def dropEvent(self, event):
+        if event.mimeData().hasFormat('text/plain'):
+            pos = self.mapToScene(event.pos())
+            drop_pos = pos.x(), pos.y()
+            drop_str = event.mimeData().text()
+            event.setDropAction(QtCore.Qt.MoveAction)
+            event.accept()
+            self.data_dropped.emit(drop_str, drop_pos)
+        else:
+            event.ignore()
 
-    # def dragEnterEvent(self, event):
-    #     if event.mimeData().hasFormat('component/name'):
-    #         event.accept()
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat('text/plain'):
+            event.accept()
+        else:
+            event.ignore()
 
-    # def dragMoveEvent(self, event):
-    #     if event.mimeData().hasFormat('component/name'):
-    #         event.accept()
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat('text/plain'):
+            event.accept()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        event.ignore()
 
     # --- viewer ---
 
@@ -513,7 +530,7 @@ class NodeViewer(QtWidgets.QGraphicsView):
             self.clearFocus()
 
     def context_menu(self):
-        return ContextMenu(self, self._context_menu)
+        return self._context_menu
 
     def question_dialog(self, title, text):
         dlg = QtWidgets.QMessageBox.question(
@@ -545,7 +562,7 @@ class NodeViewer(QtWidgets.QGraphicsView):
         if not file_path:
             return
         ext = ext_map[file_dlg[1]]
-        if ext and file_path.endswith(ext):
+        if ext and not file_path.endswith(ext):
             file_path += ext
         return file_path
 
