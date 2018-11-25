@@ -1,15 +1,18 @@
 #!/usr/bin/python
-from PySide2 import QtGui
+from distutils.version import LooseVersion
+
+from PySide2 import QtGui, QtCore
 
 
-def setup_actions(graph):
+def setup_context_menu(graph):
     """
-    build the base node graph menu commands.
+    build the default node graph context menu.
 
     Args:
-        graph (NodeGraphQt.NodeGraph):
+        graph (NodeGraphQt.NodeGraph): node graph controller.
     """
     root_menu = graph.context_menu()
+
     file_menu = root_menu.add_menu('&File')
     edit_menu = root_menu.add_menu('&Edit')
 
@@ -33,12 +36,16 @@ def setup_actions(graph):
 
     # Edit menu.
     undo_actn = graph.undo_stack().createUndoAction(graph.viewer(), '&Undo')
+    if LooseVersion(QtCore.qVersion()) >= LooseVersion('5.10'):
+        undo_actn.setShortcutVisibleInContextMenu(True)
     undo_actn.setShortcuts(QtGui.QKeySequence.Undo)
-    edit_menu.add_action(undo_actn)
+    edit_menu.qmenu.addAction(undo_actn)
 
     redo_actn = graph.undo_stack().createRedoAction(graph.viewer(), '&Redo')
+    if LooseVersion(QtCore.qVersion()) >= LooseVersion('5.10'):
+        redo_actn.setShortcutVisibleInContextMenu(True)
     redo_actn.setShortcuts(QtGui.QKeySequence.Redo)
-    edit_menu.add_action(redo_actn)
+    edit_menu.qmenu.addAction(redo_actn)
 
     edit_menu.add_separator()
     edit_menu.add_command('Clear Undo History', lambda: clear_undo(graph))
@@ -66,6 +73,9 @@ def setup_actions(graph):
                           'f')
 
     edit_menu.add_separator()
+
+
+# --- menu command functions. ---
 
 
 def zoom_in(graph):
